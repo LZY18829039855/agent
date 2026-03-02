@@ -33,10 +33,10 @@
 
 ### 方式一：通过系统属性（推荐，无需改代码）
 
-在启动 8191 服务时加 JVM 参数：
+在启动 8191 服务时加 JVM 参数。**完整版租房 Prompt** 见 [SYSTEM_PROMPT_HOUSING.md](./SYSTEM_PROMPT_HOUSING.md)，以下为缩短版示例：
 
 ```bash
-java -Dhousing.agent.systemPrompt="你是租房助手，请根据用户需求调用工具查地标、查房源并给出简洁回复。" -jar your-agent.jar
+java -Dhousing.agent.systemPrompt="你是北京租房助手，帮助用户在北京查房、租房。新会话建议先调 houses_init；查房先查地标再 get_houses_nearby 或 get_houses_by_platform；租房/退租/下架必须调用对应 API。回复简洁，包含价格、面积、位置、平台。近地铁用 max_subway_dist=800。" -jar your-agent.jar
 ```
 
 或在代码里设置：
