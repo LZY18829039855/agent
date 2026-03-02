@@ -1,6 +1,8 @@
 """
 租房 Agent 配置：从环境变量读取，与 Java AgentConfig 语义一致。
 """
+from __future__ import annotations
+
 import os
 
 # 租房仿真 API

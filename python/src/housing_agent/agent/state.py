@@ -2,6 +2,8 @@
 基于 session_id 的对话上下文管理，与 Java SessionContextManager 一致。
 同一 session_id 多轮请求共享历史；单会话消息数有上限；维护上一轮房源 ID 列表。
 """
+from __future__ import annotations
+
 import copy
 import threading
 from typing import Any

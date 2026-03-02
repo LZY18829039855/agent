@@ -2,6 +2,8 @@
 调用模型接口：base_url + /v1/chat/completions，使用 LangChain ChatOpenAI 封装，
 与 Java ModelApiClient 行为一致（Session-ID、messages、tools、stream=false）。
 """
+from __future__ import annotations
+
 import json
 
 from langchain_core.messages import (

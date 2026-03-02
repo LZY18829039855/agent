@@ -3,6 +3,8 @@
 若模型返回 tool_calls 则执行工具，从工具响应的 data.items 解析 house_id；
 返回格式与 Java ChatHandler 一致。
 """
+from __future__ import annotations
+
 import json
 import time
 

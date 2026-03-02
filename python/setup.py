@@ -17,5 +17,5 @@ setup(
         "langchain-core>=0.2.0",
         "langchain-community>=0.0.10",
     ],
-    python_requires=">=3.10",
+    python_requires=">=3.8",
 )

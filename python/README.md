@@ -4,7 +4,7 @@
 
 ## 环境
 
-- Python 3.10+
+- Python 3.8+
 - 使用 [uv](https://github.com/astral-sh/uv) 管理虚拟环境与依赖
 
 ## 快速开始

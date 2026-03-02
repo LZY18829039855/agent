@@ -2,6 +2,7 @@
 16 个工具的 OpenAI 兼容 schema，与 Java ToolDefinitions 一致。
 返回格式：{ "type": "function", "function": { "name", "description", "parameters" } }
 """
+from __future__ import annotations
 
 
 def _prop(name: str, type_: str, description: str, required: bool = False) -> dict:

@@ -3,7 +3,7 @@ name = "housing-agent"
 version = "0.1.0"
 description = "租房 Agent 服务（Flask + LangChain）"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 dependencies = [
     "flask>=2.3.0",
     "requests>=2.28.0",

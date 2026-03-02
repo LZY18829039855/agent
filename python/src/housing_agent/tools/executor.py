@@ -1,6 +1,8 @@
 """
 统一工具执行器：根据工具名和参数调用对应仿真 API，与 Java ToolExecutor 一致。
 """
+from __future__ import annotations
+
 import urllib.parse
 
 from housing_agent.config import get_housing_base_url, get_housing_user_id

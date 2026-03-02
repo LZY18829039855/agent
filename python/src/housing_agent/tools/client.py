@@ -1,6 +1,8 @@
 """
 租房仿真 API 的 HTTP 客户端。房源相关请求自动添加 X-User-ID，与 Java HousingApiClient 一致。
 """
+from __future__ import annotations
+
 import urllib.parse
 import requests
 
