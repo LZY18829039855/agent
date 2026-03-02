@@ -9,20 +9,26 @@ import com.google.gson.JsonObject;
 
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * 处理 POST /api/v1/chat 请求：解析 model_ip、session_id、message，
- * 调用模型接口；若模型返回 tool_calls，则在 8191 端执行对应工具，直接将工具接口的响应返回，不再请求模型。
+ * 调用模型接口；若模型返回 tool_calls，则在 8191 端执行工具，并从工具响应中解析 house_id，
+ * 最终统一返回格式：session_id、response（message + houses）、status、tool_results、timestamp、duration_ms。
  */
 public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
 
     private static final Gson GSON = new Gson();
     private static final String UTF8 = "UTF-8";
     private static final ToolExecutor TOOL_EXECUTOR = new ToolExecutor(new AgentConfig());
+    private static final String MESSAGE_HOUSES_FOUND = "为您找到以下符合条件的房源：";
+    private static final String MESSAGE_NO_HOUSES = "未找到符合条件的房源。";
 
     @Override
     public void handle(com.sun.net.httpserver.HttpExchange exchange) throws java.lang.Exception {
+        long startMs = System.currentTimeMillis();
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendJson(exchange, 405, errorBody("仅支持 POST"));
             return;
@@ -48,7 +54,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
         }
 
         String modelIp = request.getModel_ip();
-        String sessionId = request.getSession_id();
+        String sessionId = request.getSession_id() != null ? request.getSession_id() : "";
         String message = request.getMessage();
 
         if (modelIp == null || modelIp.trim().isEmpty()) {
@@ -64,7 +70,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
             return;
         }
 
-        String responseToSend = modelResponse;
+        JsonArray toolResults = new JsonArray();
+        JsonObject responseContent = new JsonObject();
         try {
             JsonObject root = GSON.fromJson(modelResponse, JsonObject.class);
             JsonArray choices = root != null ? root.getAsJsonArray("choices") : null;
@@ -73,47 +80,101 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                 if (msg != null && msg.has("tool_calls")) {
                     JsonArray toolCalls = msg.getAsJsonArray("tool_calls");
                     if (toolCalls != null && toolCalls.size() > 0) {
-                        responseToSend = executeToolCallsAndBuildResponse(toolCalls);
+                        ToolCallResult tcr = executeToolCallsAndCollectResults(toolCalls);
+                        toolResults = tcr.toolResults;
+                        responseContent.addProperty("message", tcr.houseIds.isEmpty() ? MESSAGE_NO_HOUSES : MESSAGE_HOUSES_FOUND);
+                        JsonArray houses = new JsonArray();
+                        for (String id : tcr.houseIds) {
+                            houses.add(id);
+                        }
+                        responseContent.add("houses", houses);
+                    } else {
+                        responseContent.addProperty("message", msg.has("content") && !msg.get("content").isJsonNull() ? msg.get("content").getAsString() : "");
+                        responseContent.add("houses", new JsonArray());
                     }
+                } else {
+                    String content = (msg != null && msg.has("content") && !msg.get("content").isJsonNull()) ? msg.get("content").getAsString() : "";
+                    responseContent.addProperty("message", content);
+                    responseContent.add("houses", new JsonArray());
                 }
+            } else {
+                responseContent.addProperty("message", "");
+                responseContent.add("houses", new JsonArray());
             }
         } catch (Exception e) {
-            responseToSend = modelResponse;
+            responseContent.addProperty("message", "");
+            responseContent.add("houses", new JsonArray());
         }
 
+        long durationMs = System.currentTimeMillis() - startMs;
+        JsonObject body = new JsonObject();
+        body.addProperty("session_id", sessionId);
+        body.add("response", responseContent);
+        body.addProperty("status", "success");
+        body.add("tool_results", toolResults);
+        body.addProperty("timestamp", startMs / 1000);
+        body.addProperty("duration_ms", durationMs);
+
         exchange.getResponseHeaders().put("Content-Type", Collections.singletonList("application/json; charset=UTF-8"));
-        byte[] bytes = responseToSend.getBytes(UTF8);
+        byte[] bytes = GSON.toJson(body).getBytes(UTF8);
         exchange.sendResponseHeaders(200, bytes.length);
         OutputStream os = exchange.getResponseBody();
         os.write(bytes);
         os.close();
     }
 
+    private static class ToolCallResult {
+        JsonArray toolResults = new JsonArray();
+        List<String> houseIds = new ArrayList<String>();
+    }
+
     /**
-     * 执行 tool_calls 中的每个工具，并将接口响应返回。
-     * 仅一个工具时直接返回该工具接口的响应字符串；多个时返回 {"tool_results": [{"name":"...","result":"..."}]}。
+     * 执行 tool_calls，收集 tool_results，并从每个工具响应的 data.items 中解析 house_id 列表。
      */
-    private static String executeToolCallsAndBuildResponse(JsonArray toolCalls) throws Exception {
-        JsonArray results = new JsonArray();
+    private static ToolCallResult executeToolCallsAndCollectResults(JsonArray toolCalls) throws Exception {
+        ToolCallResult tcr = new ToolCallResult();
         for (JsonElement el : toolCalls) {
             JsonObject tc = el.getAsJsonObject();
             JsonObject fn = tc.getAsJsonObject("function");
             String name = fn.get("name").getAsString();
-            String arguments = fn.has("arguments") && !fn.get("arguments").isJsonNull())
+            String arguments = fn.has("arguments") && !fn.get("arguments").isJsonNull()
                     ? fn.get("arguments").getAsString()
                     : "{}";
             String result = TOOL_EXECUTOR.execute(name, arguments);
             JsonObject item = new JsonObject();
             item.addProperty("name", name);
             item.addProperty("result", result);
-            results.add(item);
+            tcr.toolResults.add(item);
+            collectHouseIdsFromResult(result, tcr.houseIds);
         }
-        if (results.size() == 1) {
-            return results.get(0).getAsJsonObject().get("result").getAsString();
+        return tcr;
+    }
+
+    /**
+     * 从接口响应 JSON（code、message、data.items[].house_id）中解析出所有 house_id，加入 list。
+     */
+    private static void collectHouseIdsFromResult(String resultJson, List<String> houseIds) {
+        if (resultJson == null || resultJson.isEmpty()) {
+            return;
         }
-        JsonObject wrapper = new JsonObject();
-        wrapper.add("tool_results", results);
-        return GSON.toJson(wrapper);
+        try {
+            JsonObject root = GSON.fromJson(resultJson, JsonObject.class);
+            if (!root.has("data")) {
+                return;
+            }
+            JsonObject data = root.getAsJsonObject("data");
+            if (!data.has("items")) {
+                return;
+            }
+            JsonArray items = data.getAsJsonArray("items");
+            for (JsonElement e : items) {
+                JsonObject o = e.getAsJsonObject();
+                if (o.has("house_id")) {
+                    houseIds.add(o.get("house_id").getAsString());
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private static JsonObject errorBody(String message) {
