@@ -24,12 +24,15 @@ uv run flask --app housing_agent.app run
 
 ## 配置
 
+- 默认端口：**8191**（与 Java 服务一致，可通过环境变量 `FLASK_RUN_PORT` 覆盖）
 - 租房仿真 API：环境变量 `HOUSING_API_BASE_URL`（默认 `http://7.225.29.223:8080`）
 - 工号：`HOUSING_API_USER_ID`（默认 `l00845559`）
 - 系统提示词：`HOUSING_AGENT_SYSTEM_PROMPT`（可选，有默认北京租房助手 Prompt）
 - 模型 API 由请求体中的 `model_ip` 指定（如 `http://127.0.0.1` 或 `127.0.0.1`，端口固定 8888）
 
 ## 接口（与 Java Agent 一致）
+
+启动后服务地址为 **http://127.0.0.1:8191**（默认端口 8191）。
 
 ### POST /api/v1/chat
 
