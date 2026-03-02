@@ -7,6 +7,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
     private static final int MAX_HOUSES_IN_RESPONSE = 5;
 
     @Override
-    public void handle(com.sun.net.httpserver.HttpExchange exchange) throws java.lang.Exception {
+    public void handle(com.sun.net.httpserver.HttpExchange exchange) throws IOException {
         long startMs = System.currentTimeMillis();
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendJson(exchange, 405, errorBody("仅支持 POST"));
@@ -64,9 +65,12 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
             return;
         }
 
+        SessionContextManager ctx = SessionContextManager.getInstance();
+        JsonArray messages = ctx.getMessagesAndAppendUser(sessionId, message);
+
         String modelResponse;
         try {
-            modelResponse = ModelApiClient.chat(modelIp, sessionId, message);
+            modelResponse = ModelApiClient.chatWithMessages(modelIp, sessionId, messages);
         } catch (Exception e) {
             sendJson(exchange, 502, errorBody("调用模型失败: " + e.getMessage()));
             return;
@@ -91,14 +95,27 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                             houses.add(tcr.houseIds.get(i));
                         }
                         responseContent.add("houses", houses);
+                        List<String> toolCallIds = new ArrayList<String>();
+                        List<String> resultStrings = new ArrayList<String>();
+                        for (JsonElement el : toolCalls) {
+                            toolCallIds.add(el.getAsJsonObject().get("id").getAsString());
+                        }
+                        for (JsonElement el : tcr.toolResults) {
+                            resultStrings.add(el.getAsJsonObject().get("result").getAsString());
+                        }
+                        ctx.appendAssistantAndToolResults(sessionId, msg, toolCallIds, resultStrings);
                     } else {
                         responseContent.addProperty("message", msg.has("content") && !msg.get("content").isJsonNull() ? msg.get("content").getAsString() : "");
                         responseContent.add("houses", new JsonArray());
+                        ctx.appendAssistantMessage(sessionId, msg);
                     }
                 } else {
                     String content = (msg != null && msg.has("content") && !msg.get("content").isJsonNull()) ? msg.get("content").getAsString() : "";
                     responseContent.addProperty("message", content);
                     responseContent.add("houses", new JsonArray());
+                    if (msg != null) {
+                        ctx.appendAssistantMessage(sessionId, msg);
+                    }
                 }
             } else {
                 responseContent.addProperty("message", "");
