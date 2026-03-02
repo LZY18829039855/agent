@@ -25,6 +25,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
     private static final ToolExecutor TOOL_EXECUTOR = new ToolExecutor(new AgentConfig());
     private static final String MESSAGE_HOUSES_FOUND = "为您找到以下符合条件的房源：";
     private static final String MESSAGE_NO_HOUSES = "未找到符合条件的房源。";
+    /** 响应中房源 ID 列表的最大数量 */
+    private static final int MAX_HOUSES_IN_RESPONSE = 5;
 
     @Override
     public void handle(com.sun.net.httpserver.HttpExchange exchange) throws java.lang.Exception {
@@ -84,8 +86,9 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                         toolResults = tcr.toolResults;
                         responseContent.addProperty("message", tcr.houseIds.isEmpty() ? MESSAGE_NO_HOUSES : MESSAGE_HOUSES_FOUND);
                         JsonArray houses = new JsonArray();
-                        for (String id : tcr.houseIds) {
-                            houses.add(id);
+                        int limit = Math.min(MAX_HOUSES_IN_RESPONSE, tcr.houseIds.size());
+                        for (int i = 0; i < limit; i++) {
+                            houses.add(tcr.houseIds.get(i));
                         }
                         responseContent.add("houses", houses);
                     } else {
