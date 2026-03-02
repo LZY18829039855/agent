@@ -3,6 +3,7 @@ package com.agent.housing.server;
 import com.agent.housing.tools.ToolDefinitions;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import java.io.BufferedReader;
@@ -10,7 +11,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -51,13 +51,15 @@ public class ModelApiClient {
 
     /**
      * 调用模型 /v1/chat/completions，携带完整对话历史（多轮上下文）。
+     * 若 systemPrompt 非空，会在 messages 最前面插入一条 role=system 的消息。
      *
-     * @param modelIp   用户输入的 model_ip（IP 或带协议的 URL）
-     * @param sessionId 请求头 Session-ID 的值
-     * @param messages  完整 messages（历史 + 本轮 user），可为 null 则仅发一条 user 空内容
+     * @param modelIp     用户输入的 model_ip（IP 或带协议的 URL）
+     * @param sessionId   请求头 Session-ID 的值
+     * @param messages    完整 messages（历史 + 本轮 user），可为 null 则仅发一条 user 空内容
+     * @param systemPrompt 可选系统提示词，为 null 或空串则不插入 system 消息
      * @return 模型返回的完整 JSON 字符串
      */
-    public static String chatWithMessages(String modelIp, String sessionId, JsonArray messages) throws Exception {
+    public static String chatWithMessages(String modelIp, String sessionId, JsonArray messages, String systemPrompt) throws Exception {
         String baseUrl = buildModelBaseUrl(modelIp);
         String urlStr = baseUrl + "/v1/chat/completions";
 
@@ -70,7 +72,18 @@ public class ModelApiClient {
             userMsg.addProperty("content", "");
             messages.add(userMsg);
         }
-        body.add("messages", messages);
+        JsonArray messagesToSend = messages;
+        if (systemPrompt != null && !systemPrompt.trim().isEmpty()) {
+            messagesToSend = new JsonArray();
+            JsonObject systemMsg = new JsonObject();
+            systemMsg.addProperty("role", "system");
+            systemMsg.addProperty("content", systemPrompt.trim());
+            messagesToSend.add(systemMsg);
+            for (JsonElement el : messages) {
+                messagesToSend.add(el);
+            }
+        }
+        body.add("messages", messagesToSend);
 
         List<Map<String, Object>> tools = ToolDefinitions.getOpenAIFormatTools();
         body.add("tools", GSON.toJsonTree(tools).getAsJsonArray());

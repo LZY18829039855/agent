@@ -23,7 +23,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
 
     private static final Gson GSON = new Gson();
     private static final String UTF8 = "UTF-8";
-    private static final ToolExecutor TOOL_EXECUTOR = new ToolExecutor(new AgentConfig());
+    private static final AgentConfig AGENT_CONFIG = new AgentConfig();
+    private static final ToolExecutor TOOL_EXECUTOR = new ToolExecutor(AGENT_CONFIG);
     private static final String MESSAGE_HOUSES_FOUND = "为您找到以下符合条件的房源：";
     private static final String MESSAGE_NO_HOUSES = "未找到符合条件的房源。";
     /** 响应中房源 ID 列表的最大数量 */
@@ -70,7 +71,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
 
         String modelResponse;
         try {
-            modelResponse = ModelApiClient.chatWithMessages(modelIp, sessionId, messages);
+            modelResponse = ModelApiClient.chatWithMessages(modelIp, sessionId, messages, AGENT_CONFIG.getSystemPrompt());
         } catch (Exception e) {
             sendJson(exchange, 502, errorBody("调用模型失败: " + e.getMessage()));
             return;
@@ -91,10 +92,14 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                         responseContent.addProperty("message", tcr.houseIds.isEmpty() ? MESSAGE_NO_HOUSES : MESSAGE_HOUSES_FOUND);
                         JsonArray houses = new JsonArray();
                         int limit = Math.min(MAX_HOUSES_IN_RESPONSE, tcr.houseIds.size());
+                        List<String> houseIdList = new ArrayList<String>();
                         for (int i = 0; i < limit; i++) {
-                            houses.add(tcr.houseIds.get(i));
+                            String id = tcr.houseIds.get(i);
+                            houses.add(id);
+                            houseIdList.add(id);
                         }
                         responseContent.add("houses", houses);
+                        ctx.setLastHouseIds(sessionId, houseIdList);
                         List<String> toolCallIds = new ArrayList<String>();
                         List<String> resultStrings = new ArrayList<String>();
                         for (JsonElement el : toolCalls) {
@@ -106,24 +111,24 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                         ctx.appendAssistantAndToolResults(sessionId, msg, toolCallIds, resultStrings);
                     } else {
                         responseContent.addProperty("message", msg.has("content") && !msg.get("content").isJsonNull() ? msg.get("content").getAsString() : "");
-                        responseContent.add("houses", new JsonArray());
+                        responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
                         ctx.appendAssistantMessage(sessionId, msg);
                     }
                 } else {
                     String content = (msg != null && msg.has("content") && !msg.get("content").isJsonNull()) ? msg.get("content").getAsString() : "";
                     responseContent.addProperty("message", content);
-                    responseContent.add("houses", new JsonArray());
+                    responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
                     if (msg != null) {
                         ctx.appendAssistantMessage(sessionId, msg);
                     }
                 }
             } else {
                 responseContent.addProperty("message", "");
-                responseContent.add("houses", new JsonArray());
+                responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
             }
         } catch (Exception e) {
             responseContent.addProperty("message", "");
-            responseContent.add("houses", new JsonArray());
+            responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
         }
 
         long durationMs = System.currentTimeMillis() - startMs;
@@ -141,6 +146,18 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
         OutputStream os = exchange.getResponseBody();
         os.write(bytes);
         os.close();
+    }
+
+    /** 从会话上下文中取上一轮房源 ID，保证每轮响应都带房屋信息 */
+    private static JsonArray housesArrayFromContext(SessionContextManager ctx, String sessionId) {
+        JsonArray arr = new JsonArray();
+        if (ctx == null) {
+            return arr;
+        }
+        for (String id : ctx.getLastHouseIds(sessionId)) {
+            arr.add(id);
+        }
+        return arr;
     }
 
     private static class ToolCallResult {

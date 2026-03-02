@@ -16,8 +16,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SessionContextManager {
 
     private static final int MAX_MESSAGES_PER_SESSION = 30;
+    /** 每轮响应中房源最多 5 套，与 ChatHandler 一致 */
+    private static final int MAX_HOUSES = 5;
 
     private final ConcurrentHashMap<String, List<JsonObject>> sessionMessages = new ConcurrentHashMap<String, List<JsonObject>>();
+    /** 每个会话最近一次返回的房源 ID 列表，供多轮对话中非工具轮次仍带出房屋信息 */
+    private final ConcurrentHashMap<String, List<String>> sessionLastHouseIds = new ConcurrentHashMap<String, List<String>>();
 
     /**
      * 获取当前会话的消息列表（副本），并追加本轮用户消息。
@@ -101,6 +105,35 @@ public class SessionContextManager {
         while (list.size() > MAX_MESSAGES_PER_SESSION) {
             list.remove(0);
         }
+    }
+
+    /**
+     * 设置该会话本轮的房源 ID 列表（最多保留 MAX_HOUSES 个），后续轮次若无工具调用则用此列表作为 response.houses。
+     */
+    public void setLastHouseIds(String sessionId, List<String> houseIds) {
+        String key = sessionId != null ? sessionId : "";
+        if (houseIds == null || houseIds.isEmpty()) {
+            sessionLastHouseIds.remove(key);
+            return;
+        }
+        List<String> copy = new ArrayList<String>();
+        int limit = Math.min(MAX_HOUSES, houseIds.size());
+        for (int i = 0; i < limit; i++) {
+            copy.add(houseIds.get(i));
+        }
+        sessionLastHouseIds.put(key, copy);
+    }
+
+    /**
+     * 获取该会话上一轮保存的房源 ID 列表；无则返回空列表。
+     */
+    public List<String> getLastHouseIds(String sessionId) {
+        String key = sessionId != null ? sessionId : "";
+        List<String> list = sessionLastHouseIds.get(key);
+        if (list == null) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<String>(list);
     }
 
     /** 单例，供 ChatHandler 使用 */
