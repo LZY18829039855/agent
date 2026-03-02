@@ -9,10 +9,17 @@
 
 ## 配置
 
+- **默认**：租房仿真 API 地址 `http://7.225.29.223:8080`，工号 `l00845559`。所有房源类接口（/api/houses/*）请求会自动带上请求头 `X-User-ID`。
+- **覆盖**：构造时传入或通过系统属性：
+  - `-Dhousing.api.baseUrl=http://其他IP:8080`
+  - `-Dhousing.api.userId=你的工号`
+
 ```java
+// 使用默认（7.225.29.223:8080 + 工号 l00845559）
 AgentConfig config = new AgentConfig();
-config.setBaseUrl("http://比赛IP:8080");  // 将 IP 换为黄区/绿区给定 IP
-config.setUserId("你的工号");             // 比赛平台注册的用户工号，用于 X-User-ID
+
+// 或自定义
+AgentConfig config = new AgentConfig("http://7.225.29.223:8080", "l00845559");
 ```
 
 ## 使用方式
