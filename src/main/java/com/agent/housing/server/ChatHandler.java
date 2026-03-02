@@ -8,7 +8,8 @@ import java.io.OutputStream;
 import java.util.Collections;
 
 /**
- * 处理 POST /api/v1/chat 请求：解析 model_ip、session_id、message，并返回结果。
+ * 处理 POST /api/v1/chat 请求：解析 model_ip、session_id、message，
+ * 调用模型接口（model_ip:8888/v1/chat/completions，请求头 Session-ID），并返回模型响应。
  */
 public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
 
@@ -16,7 +17,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
     private static final String UTF8 = "UTF-8";
 
     @Override
-    public void handle(com.sun.net.httpserver.HttpExchange exchange) throws Exception {
+    public void handle(com.sun.net.httpserver.HttpExchange exchange) throws java.lang.Exception {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendJson(exchange, 405, errorBody("仅支持 POST"));
             return;
@@ -45,16 +46,21 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
         String sessionId = request.getSession_id();
         String message = request.getMessage();
 
-        // 此处可接入 Agent 主循环：根据 model_ip 调用模型，session_id 维护会话，message 为用户输入
-        JsonObject body = new JsonObject();
-        body.addProperty("model_ip", modelIp);
-        body.addProperty("session_id", sessionId);
-        body.addProperty("message", message);
-        body.addProperty("received", true);
-        body.addProperty("reply", "Agent 已收到请求，待接入模型与工具后返回真实回复。");
+        if (modelIp == null || modelIp.trim().isEmpty()) {
+            sendJson(exchange, 400, errorBody("model_ip 不能为空"));
+            return;
+        }
+
+        String modelResponse;
+        try {
+            modelResponse = ModelApiClient.chat(modelIp, sessionId, message);
+        } catch (Exception e) {
+            sendJson(exchange, 502, errorBody("调用模型失败: " + e.getMessage()));
+            return;
+        }
 
         exchange.getResponseHeaders().put("Content-Type", Collections.singletonList("application/json; charset=UTF-8"));
-        byte[] bytes = GSON.toJson(body).getBytes(UTF8);
+        byte[] bytes = modelResponse.getBytes(UTF8);
         exchange.sendResponseHeaders(200, bytes.length);
         OutputStream os = exchange.getResponseBody();
         os.write(bytes);
