@@ -168,8 +168,13 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
         List<String> houseIds = new ArrayList<String>();
     }
 
+    /** 租房、退租、下架：需将操作的房源 ID 放入 response.houses */
+    private static final java.util.Set<String> HOUSE_OPERATION_TOOLS = new java.util.HashSet<String>(
+            java.util.Arrays.asList("rent_house", "terminate_rental", "take_offline"));
+
     /**
      * 执行 tool_calls，收集 tool_results，并从每个工具响应的 data.items 中解析 house_id 列表。
+     * 对 rent_house/terminate_rental/take_offline 从参数中取 house_id 加入 houses，便于返回操作的房源。
      * 按 session_id 记录每次工具调用与响应。
      */
     private static ToolCallResult executeToolCallsAndCollectResults(String sessionId, JsonArray toolCalls) throws Exception {
@@ -190,8 +195,30 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
             item.addProperty("result", result);
             tcr.toolResults.add(item);
             collectHouseIdsFromResult(result, tcr.houseIds);
+            if (HOUSE_OPERATION_TOOLS.contains(name)) {
+                addHouseIdFromArguments(arguments, tcr.houseIds);
+            }
         }
         return tcr;
+    }
+
+    /**
+     * 从工具参数字符串中解析 house_id 并加入列表（不重复），插入到列表开头以保证在 response.houses 中返回。
+     */
+    private static void addHouseIdFromArguments(String argumentsJson, List<String> houseIds) {
+        if (argumentsJson == null || argumentsJson.isEmpty()) {
+            return;
+        }
+        try {
+            JsonObject args = GSON.fromJson(argumentsJson, JsonObject.class);
+            if (args != null && args.has("house_id") && !args.get("house_id").isJsonNull()) {
+                String houseId = args.get("house_id").getAsString();
+                if (houseId != null && !houseId.isEmpty() && !houseIds.contains(houseId)) {
+                    houseIds.add(0, houseId);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     /**
