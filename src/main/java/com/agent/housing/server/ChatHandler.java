@@ -13,7 +13,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 处理 POST /api/v1/chat 请求：解析 model_ip、session_id、message，
@@ -96,12 +98,16 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                         JsonObject responseContent = new JsonObject();
                         responseContent.addProperty("message", tcr.houseIds.isEmpty() ? MESSAGE_NO_HOUSES : MESSAGE_HOUSES_FOUND);
                         JsonArray houses = new JsonArray();
-                        int limit = Math.min(MAX_HOUSES_IN_RESPONSE, tcr.houseIds.size());
                         List<String> houseIdList = new ArrayList<String>();
-                        for (int i = 0; i < limit; i++) {
-                            String id = tcr.houseIds.get(i);
-                            houses.add(id);
-                            houseIdList.add(id);
+                        Set<String> seen = new HashSet<String>();
+                        for (String id : tcr.houseIds) {
+                            if (id != null && !id.isEmpty() && seen.add(id)) {
+                                houses.add(id);
+                                houseIdList.add(id);
+                                if (houseIdList.size() >= MAX_HOUSES_IN_RESPONSE) {
+                                    break;
+                                }
+                            }
                         }
                         responseContent.add("houses", houses);
                         ctx.setLastHouseIds(sessionId, houseIdList);
