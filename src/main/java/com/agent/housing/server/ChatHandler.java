@@ -81,7 +81,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
         }
 
         JsonArray toolResults = new JsonArray();
-        JsonObject responseContent = new JsonObject();
+        /** 无工具时：response 为回复字符串；有工具时：response 为转义 JSON 字符串 "{\"message\":\"...\",\"houses\":[\"HF_2101\"]}" */
+        String responseValue;
         try {
             JsonObject root = GSON.fromJson(modelResponse, JsonObject.class);
             JsonArray choices = root != null ? root.getAsJsonArray("choices") : null;
@@ -92,6 +93,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                     if (toolCalls != null && toolCalls.size() > 0) {
                         ToolCallResult tcr = executeToolCallsAndCollectResults(sessionId, toolCalls);
                         toolResults = tcr.toolResults;
+                        JsonObject responseContent = new JsonObject();
                         responseContent.addProperty("message", tcr.houseIds.isEmpty() ? MESSAGE_NO_HOUSES : MESSAGE_HOUSES_FOUND);
                         JsonArray houses = new JsonArray();
                         int limit = Math.min(MAX_HOUSES_IN_RESPONSE, tcr.houseIds.size());
@@ -103,6 +105,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                         }
                         responseContent.add("houses", houses);
                         ctx.setLastHouseIds(sessionId, houseIdList);
+                        responseValue = GSON.toJson(responseContent);
                         List<String> toolCallIds = new ArrayList<String>();
                         List<String> resultStrings = new ArrayList<String>();
                         for (JsonElement el : toolCalls) {
@@ -113,31 +116,26 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                         }
                         ctx.appendAssistantAndToolResults(sessionId, msg, toolCallIds, resultStrings);
                     } else {
-                        responseContent.addProperty("message", msg.has("content") && !msg.get("content").isJsonNull() ? msg.get("content").getAsString() : "");
-                        responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
+                        responseValue = msg.has("content") && !msg.get("content").isJsonNull() ? msg.get("content").getAsString() : "";
                         ctx.appendAssistantMessage(sessionId, msg);
                     }
                 } else {
-                    String content = (msg != null && msg.has("content") && !msg.get("content").isJsonNull()) ? msg.get("content").getAsString() : "";
-                    responseContent.addProperty("message", content);
-                    responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
+                    responseValue = (msg != null && msg.has("content") && !msg.get("content").isJsonNull()) ? msg.get("content").getAsString() : "";
                     if (msg != null) {
                         ctx.appendAssistantMessage(sessionId, msg);
                     }
                 }
             } else {
-                responseContent.addProperty("message", "");
-                responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
+                responseValue = "";
             }
         } catch (Exception e) {
-            responseContent.addProperty("message", "");
-            responseContent.add("houses", housesArrayFromContext(ctx, sessionId));
+            responseValue = "";
         }
 
         long durationMs = System.currentTimeMillis() - startMs;
         JsonObject body = new JsonObject();
         body.addProperty("session_id", sessionId);
-        body.add("response", responseContent);
+        body.addProperty("response", responseValue);
         body.addProperty("status", "success");
         body.add("tool_results", toolResults);
         body.addProperty("timestamp", startMs / 1000);
