@@ -33,6 +33,9 @@ public class SessionLogger {
     private final ConcurrentHashMap<String, List<SessionLogEntry>> logsBySession = new ConcurrentHashMap<String, List<SessionLogEntry>>();
     /** 每个 session 最多保留的日志条数，避免内存无限增长 */
     private static final int MAX_ENTRIES_PER_SESSION = 500;
+    /** 上一次输出日志的 sessionId，用于在不同 session 之间插入空行 */
+    private static volatile String lastLoggedSessionId = null;
+    private static final Object LOG_SESSION_LOCK = new Object();
 
     private static final SessionLogger INSTANCE = new SessionLogger();
 
@@ -150,6 +153,12 @@ public class SessionLogger {
             logLine = logLine + " | " + detail;
         } else if (detail != null && detail.length() > 2000) {
             logLine = logLine + " | (detail length=" + detail.length() + ")";
+        }
+        synchronized (LOG_SESSION_LOCK) {
+            if (lastLoggedSessionId != null && !lastLoggedSessionId.equals(sessionId)) {
+                LOG.log(Level.INFO, "");
+            }
+            lastLoggedSessionId = sessionId;
         }
         LOG.log(Level.INFO, logLine);
     }
