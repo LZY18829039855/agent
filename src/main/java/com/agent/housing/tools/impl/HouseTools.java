@@ -1,9 +1,15 @@
 package com.agent.housing.tools.impl;
 
 import com.agent.housing.client.HousingApiClient;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -11,6 +17,7 @@ import java.util.Map;
  */
 public class HouseTools {
 
+    private static final Gson GSON = new Gson();
     private final HousingApiClient client;
 
     public HouseTools(HousingApiClient client) {
@@ -87,6 +94,121 @@ public class HouseTools {
                 "page", page != null ? String.valueOf(page) : null,
                 "page_size", pageSize != null ? String.valueOf(pageSize) : null);
         return client.get("/api/houses/by_platform", params, true);
+    }
+
+    /**
+     * 按挂牌平台及房屋标签（tags）、噪声环境（hidden_noise_level）筛选房源。
+     * 先调用 /api/houses/by_platform 获取数据，再在本地过滤 tags 与 hidden_noise_level 后返回。
+     */
+    public String getHousesByPlatformAndTags(
+            String listingPlatform, String district, String tags, String hiddenNoiseLevel, String area,
+            Integer minPrice, Integer maxPrice, String bedrooms, String rentalType,
+            String decoration, String orientation, String elevator,
+            Integer minArea, Integer maxArea, String propertyType,
+            String subwayLine, Integer maxSubwayDist, String subwayStation,
+            String utilitiesType, String availableFromBefore, Integer commuteToXierqiMax,
+            String sortBy, String sortOrder, Integer page, Integer pageSize) throws Exception {
+        // 向远端只传 by_platform 支持的参数，不传 tags / hidden_noise_level；拉取较大一页以便本地过滤后再分页
+        String raw = getHousesByPlatform(
+                listingPlatform, district, area,
+                minPrice, maxPrice, bedrooms, rentalType,
+                decoration, orientation, elevator,
+                minArea, maxArea, propertyType,
+                subwayLine, maxSubwayDist, subwayStation,
+                utilitiesType, availableFromBefore, commuteToXierqiMax,
+                sortBy, sortOrder, 1, 10000);
+        JsonObject root = GSON.fromJson(raw, JsonObject.class);
+        if (root == null || !root.has("data")) {
+            return raw;
+        }
+        JsonObject data = root.getAsJsonObject("data");
+        if (!data.has("items")) {
+            return raw;
+        }
+        JsonArray items = data.getAsJsonArray("items");
+        List<String> requiredTags = parseTagList(tags);
+        List<JsonElement> filtered = new ArrayList<>();
+        for (JsonElement el : items) {
+            if (!el.isJsonObject()) {
+                continue;
+            }
+            JsonObject house = el.getAsJsonObject();
+            if (!matchTags(house, requiredTags)) {
+                continue;
+            }
+            if (!matchHiddenNoiseLevel(house, hiddenNoiseLevel)) {
+                continue;
+            }
+            filtered.add(el);
+        }
+        int total = filtered.size();
+        int pageNum = (page != null && page > 0) ? page : 1;
+        int size = (pageSize != null && pageSize > 0) ? pageSize : 20;
+        int from = (pageNum - 1) * size;
+        int to = Math.min(from + size, total);
+        JsonArray resultItems = new JsonArray();
+        for (int i = from; i < to && i < filtered.size(); i++) {
+            resultItems.add(filtered.get(i));
+        }
+        JsonObject newData = new JsonObject();
+        newData.addProperty("total", total);
+        newData.addProperty("page", pageNum);
+        newData.addProperty("page_size", size);
+        newData.add("items", resultItems);
+        JsonObject out = new JsonObject();
+        out.addProperty("code", root.has("code") ? root.get("code").getAsInt() : 0);
+        out.addProperty("message", root.has("message") ? root.get("message").getAsString() : "success");
+        out.add("data", newData);
+        return GSON.toJson(out);
+    }
+
+    /** 解析 tags 参数字符串为列表（支持逗号、顿号分隔），去空、去首尾空格 */
+    private static List<String> parseTagList(String tags) {
+        List<String> list = new ArrayList<>();
+        if (tags == null || tags.isEmpty()) {
+            return list;
+        }
+        for (String s : tags.split("[,、]")) {
+            String t = s.trim();
+            if (!t.isEmpty()) {
+                list.add(t);
+            }
+        }
+        return list;
+    }
+
+    /** 若未要求 tags 则通过；否则要求房屋 tags 包含所有要求的标签 */
+    private static boolean matchTags(JsonObject house, List<String> requiredTags) {
+        if (requiredTags.isEmpty()) {
+            return true;
+        }
+        if (!house.has("tags") || !house.get("tags").isJsonArray()) {
+            return false;
+        }
+        JsonArray arr = house.getAsJsonArray("tags");
+        List<String> houseTags = new ArrayList<>();
+        for (JsonElement e : arr) {
+            if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isString()) {
+                houseTags.add(e.getAsString().trim());
+            }
+        }
+        for (String required : requiredTags) {
+            if (!houseTags.contains(required)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 若未要求 hidden_noise_level 则通过；否则要求房屋 hidden_noise_level 与之相等 */
+    private static boolean matchHiddenNoiseLevel(JsonObject house, String hiddenNoiseLevel) {
+        if (hiddenNoiseLevel == null || hiddenNoiseLevel.isEmpty()) {
+            return true;
+        }
+        if (!house.has("hidden_noise_level") || house.get("hidden_noise_level").isJsonNull()) {
+            return false;
+        }
+        return hiddenNoiseLevel.trim().equals(house.get("hidden_noise_level").getAsString().trim());
     }
 
     /** 10. 以地标为圆心查附近房源 */

@@ -84,6 +84,33 @@ public class ToolExecutor {
                         str(args, "sort_order"),
                         intOrNull(args, "page"),
                         intOrNull(args, "page_size"));
+            case "get_houses_by_platform_and_tags":
+                return houseTools.getHousesByPlatformAndTags(
+                        str(args, "listing_platform"),
+                        str(args, "district"),
+                        str(args, "tags"),
+                        str(args, "hidden_noise_level"),
+                        str(args, "area"),
+                        intOrNull(args, "min_price"),
+                        intOrNull(args, "max_price"),
+                        str(args, "bedrooms"),
+                        str(args, "rental_type"),
+                        str(args, "decoration"),
+                        str(args, "orientation"),
+                        str(args, "elevator"),
+                        intOrNull(args, "min_area"),
+                        intOrNull(args, "max_area"),
+                        str(args, "property_type"),
+                        str(args, "subway_line"),
+                        intOrNull(args, "max_subway_dist"),
+                        str(args, "subway_station"),
+                        str(args, "utilities_type"),
+                        str(args, "available_from_before"),
+                        intOrNull(args, "commute_to_xierqi_max"),
+                        str(args, "sort_by"),
+                        str(args, "sort_order"),
+                        intOrNull(args, "page"),
+                        intOrNull(args, "page_size"));
             case "get_houses_nearby":
                 return houseTools.getHousesNearby(
                         str(args, "landmark_id"),
