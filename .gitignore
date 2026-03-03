@@ -20,6 +20,7 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
 # Python (housing-agent)
 python/.venv/

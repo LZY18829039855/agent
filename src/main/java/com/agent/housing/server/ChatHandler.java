@@ -133,6 +133,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
         }
 
         long durationMs = System.currentTimeMillis() - startMs;
+        SessionLogger.getInstance().logAgentResponse(sessionId, responseValue);
+
         JsonObject body = new JsonObject();
         body.addProperty("session_id", sessionId);
         body.addProperty("response", responseValue);
