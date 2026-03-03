@@ -1,6 +1,7 @@
 package com.agent.housing.server;
 
 import com.agent.housing.config.AgentConfig;
+import com.agent.housing.logging.SessionLogger;
 import com.agent.housing.tools.ToolExecutor;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -66,6 +67,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
             return;
         }
 
+        SessionLogger.getInstance().logRequest(sessionId, modelIp, message);
+
         SessionContextManager ctx = SessionContextManager.getInstance();
         JsonArray messages = ctx.getMessagesAndAppendUser(sessionId, message);
 
@@ -87,7 +90,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                 if (msg != null && msg.has("tool_calls")) {
                     JsonArray toolCalls = msg.getAsJsonArray("tool_calls");
                     if (toolCalls != null && toolCalls.size() > 0) {
-                        ToolCallResult tcr = executeToolCallsAndCollectResults(toolCalls);
+                        ToolCallResult tcr = executeToolCallsAndCollectResults(sessionId, toolCalls);
                         toolResults = tcr.toolResults;
                         responseContent.addProperty("message", tcr.houseIds.isEmpty() ? MESSAGE_NO_HOUSES : MESSAGE_HOUSES_FOUND);
                         JsonArray houses = new JsonArray();
@@ -167,9 +170,11 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
 
     /**
      * 执行 tool_calls，收集 tool_results，并从每个工具响应的 data.items 中解析 house_id 列表。
+     * 按 session_id 记录每次工具调用与响应。
      */
-    private static ToolCallResult executeToolCallsAndCollectResults(JsonArray toolCalls) throws Exception {
+    private static ToolCallResult executeToolCallsAndCollectResults(String sessionId, JsonArray toolCalls) throws Exception {
         ToolCallResult tcr = new ToolCallResult();
+        SessionLogger sessionLogger = SessionLogger.getInstance();
         for (JsonElement el : toolCalls) {
             JsonObject tc = el.getAsJsonObject();
             JsonObject fn = tc.getAsJsonObject("function");
@@ -177,7 +182,9 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
             String arguments = fn.has("arguments") && !fn.get("arguments").isJsonNull()
                     ? fn.get("arguments").getAsString()
                     : "{}";
+            sessionLogger.logToolCall(sessionId, name, arguments);
             String result = TOOL_EXECUTOR.execute(name, arguments);
+            sessionLogger.logToolResponse(sessionId, name, result);
             JsonObject item = new JsonObject();
             item.addProperty("name", name);
             item.addProperty("result", result);
@@ -220,7 +227,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
         return o;
     }
 
-    private static void sendJson(com.sun.net.httpserver.HttpExchange exchange, int statusCode, JsonObject body) throws Exception {
+    private static void sendJson(com.sun.net.httpserver.HttpExchange exchange, int statusCode, JsonObject body) throws IOException {
         String utf8 = "UTF-8";
         exchange.getResponseHeaders().put("Content-Type", Collections.singletonList("application/json; charset=" + utf8));
         byte[] bytes = GSON.toJson(body).getBytes(utf8);
