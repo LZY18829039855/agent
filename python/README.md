@@ -45,17 +45,24 @@ uv run flask --app housing_agent.app run
 **响应**（JSON）：
 
 - `session_id`：会话 ID
-- `response`：`{ "message": "文本回复", "houses": ["HF_2001", ...] }`
+- `response`：**字符串**，根据是否有工具调用有两种形式：
+  - **普通对话**（无工具调用）：自然语言文本，如 `"您好，请问有什么可以帮您？"`
+  - **房源查询完成后**（有工具调用）：合法 JSON 字符串（已转义），如 `"{\"message\": \"为您找到以下符合条件的房源：\", \"houses\": [\"HF_4\", \"HF_6\"]}"`
 - `status`：`success` 或 `error`
 - `tool_results`：`[{ "name": "工具名", "result": "API 返回 JSON 字符串" }, ...]`
 - `timestamp`：请求开始时间（秒）
 - `duration_ms`：耗时（毫秒）
 
-当模型返回 `tool_calls` 时，本服务会执行 16 个工具并将会话更新；`response.message` 为「为您找到以下符合条件的房源」或「未找到符合条件的房源」，`response.houses` 为本轮工具结果中解析出的房源 ID（最多 5 个）。
-
 ### GET /health
 
 健康检查，返回 `{"status":"ok","service":"housing-agent-python"}`。
+
+## 日志
+
+- 每次请求、工具调用及工具输出会按 **session_id** 分块写入日志。
+- 日志目录：**当前工作目录下的 `logs/`**（例如在 `python` 目录启动则为 `python/logs/`）。
+- 文件名：`housing_agent_YYYY-MM-DD.log`（按天滚动）。
+- 每条记录包含 `[session_id=xxx]`，便于按会话筛选。
 
 ## 设计文档
 

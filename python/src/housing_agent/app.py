@@ -7,6 +7,7 @@ import os
 from flask import Flask, request, jsonify
 
 from housing_agent.agent.chat_handler import handle_chat
+from housing_agent.logger import log_request
 
 # 默认端口 8191，使用 flask run 时生效
 if "FLASK_RUN_PORT" not in os.environ:
@@ -33,6 +34,7 @@ def chat():
     message = body.get("message")
     if not model_ip:
         return jsonify({"error": "model_ip 不能为空"}), 400
+    log_request(session_id or "", model_ip, message or "", body)
     result = handle_chat(model_ip=model_ip, session_id=session_id, message=message)
     if result.get("status") == "error":
         return jsonify(result), 502
