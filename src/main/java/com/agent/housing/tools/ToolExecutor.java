@@ -59,32 +59,33 @@ public class ToolExecutor {
                         str(args, "listing_platform"),
                         intOrNull(args, "page"),
                         intOrNull(args, "page_size"));
+            // 原 /api/houses/by_platform 接口已由 get_houses_by_platform（原 by_platform_and_tags）替代，此处注释保留
+            // case "get_houses_by_platform":
+            //     return houseTools.getHousesByPlatform(
+            //             str(args, "listing_platform"),
+            //             str(args, "district"),
+            //             str(args, "area"),
+            //             intOrNull(args, "min_price"),
+            //             intOrNull(args, "max_price"),
+            //             str(args, "bedrooms"),
+            //             str(args, "rental_type"),
+            //             str(args, "decoration"),
+            //             str(args, "orientation"),
+            //             str(args, "elevator"),
+            //             intOrNull(args, "min_area"),
+            //             intOrNull(args, "max_area"),
+            //             str(args, "property_type"),
+            //             str(args, "subway_line"),
+            //             intOrNull(args, "max_subway_dist"),
+            //             str(args, "subway_station"),
+            //             str(args, "utilities_type"),
+            //             str(args, "available_from_before"),
+            //             intOrNull(args, "commute_to_xierqi_max"),
+            //             str(args, "sort_by"),
+            //             str(args, "sort_order"),
+            //             intOrNull(args, "page"),
+            //             intOrNull(args, "page_size"));
             case "get_houses_by_platform":
-                return houseTools.getHousesByPlatform(
-                        str(args, "listing_platform"),
-                        str(args, "district"),
-                        str(args, "area"),
-                        intOrNull(args, "min_price"),
-                        intOrNull(args, "max_price"),
-                        str(args, "bedrooms"),
-                        str(args, "rental_type"),
-                        str(args, "decoration"),
-                        str(args, "orientation"),
-                        str(args, "elevator"),
-                        intOrNull(args, "min_area"),
-                        intOrNull(args, "max_area"),
-                        str(args, "property_type"),
-                        str(args, "subway_line"),
-                        intOrNull(args, "max_subway_dist"),
-                        str(args, "subway_station"),
-                        str(args, "utilities_type"),
-                        str(args, "available_from_before"),
-                        intOrNull(args, "commute_to_xierqi_max"),
-                        str(args, "sort_by"),
-                        str(args, "sort_order"),
-                        intOrNull(args, "page"),
-                        intOrNull(args, "page_size"));
-            case "get_houses_by_platform_and_tags":
                 return houseTools.getHousesByPlatformAndTags(
                         str(args, "listing_platform"),
                         str(args, "district"),
