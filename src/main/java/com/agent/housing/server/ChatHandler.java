@@ -198,7 +198,7 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
             sessionLogger.logToolResponse(sessionId, name, result);
             JsonObject item = new JsonObject();
             item.addProperty("name", name);
-            item.addProperty("result", result);
+            item.addProperty("result", simplifyToolResultToHouseIds(result));
             tcr.toolResults.add(item);
             collectHouseIdsFromResult(result, tcr.houseIds);
             if (HOUSE_OPERATION_TOOLS.contains(name)) {
@@ -224,6 +224,42 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                 }
             }
         } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 将工具返回的完整 JSON（含 data.items 房源详情）简化为仅包含 house_id 的格式，供 tool_results 返回。
+     * 若为房源列表结构则返回 {"code":0,"message":"success","data":{"house_ids":["HF_1711",...]}}；否则返回原字符串。
+     */
+    private static String simplifyToolResultToHouseIds(String resultJson) {
+        if (resultJson == null || resultJson.isEmpty()) {
+            return resultJson;
+        }
+        try {
+            JsonObject root = GSON.fromJson(resultJson, JsonObject.class);
+            if (root == null || !root.has("data")) {
+                return resultJson;
+            }
+            JsonObject data = root.getAsJsonObject("data");
+            if (!data.has("items") || !data.get("items").isJsonArray()) {
+                return resultJson;
+            }
+            JsonArray items = data.getAsJsonArray("items");
+            JsonArray houseIds = new JsonArray();
+            for (JsonElement e : items) {
+                if (e.isJsonObject() && e.getAsJsonObject().has("house_id")) {
+                    houseIds.add(e.getAsJsonObject().get("house_id"));
+                }
+            }
+            JsonObject newData = new JsonObject();
+            newData.add("house_ids", houseIds);
+            JsonObject out = new JsonObject();
+            out.addProperty("code", root.has("code") ? root.get("code").getAsInt() : 0);
+            out.addProperty("message", root.has("message") ? root.get("message").getAsString() : "success");
+            out.add("data", newData);
+            return GSON.toJson(out);
+        } catch (Exception e) {
+            return resultJson;
         }
     }
 
