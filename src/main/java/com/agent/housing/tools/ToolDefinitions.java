@@ -118,7 +118,7 @@ public final class ToolDefinitions {
                         prop("sort_by", "string", "排序字段：price/area/subway"),
                         prop("sort_order", "string", "asc 或 desc"),
                         prop("page", "integer", "页码，默认 1"),
-                        prop("page_size", "integer", "每页条数，默认 20，最大 10000"))));
+                        prop("page_size", "integer", "每页条数，默认 100，最大 10000"))));
         list.add(functionTool("get_houses_nearby",
                 "以地标为圆心，查询在指定距离内的可租房源，返回带直线距离、步行距离、步行时间。需先通过地标接口获得 landmark_id。调用时请求头必带 X-User-ID。",
                 properties(

@@ -143,7 +143,7 @@ public class HouseTools {
         }
         int total = filtered.size();
         int pageNum = (page != null && page > 0) ? page : 1;
-        int size = (pageSize != null && pageSize > 0) ? pageSize : 20;
+        int size = (pageSize != null && pageSize > 0) ? pageSize : 100;
         int from = (pageNum - 1) * size;
         int to = Math.min(from + size, total);
         JsonArray resultItems = new JsonArray();
