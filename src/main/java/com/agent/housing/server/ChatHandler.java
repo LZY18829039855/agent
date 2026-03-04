@@ -264,7 +264,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
     }
 
     /**
-     * 从接口响应 JSON（code、message、data.items[].house_id）中解析出所有 house_id，加入 list。
+     * 从接口响应 JSON 中解析 house_id 加入 list。
+     * 支持两种格式：（1）data.items[] 列表，每项含 house_id；（2）data 为单对象且含 data.house_id（如 get_house_by_id、租房等）。
      */
     private static void collectHouseIdsFromResult(String resultJson, List<String> houseIds) {
         if (resultJson == null || resultJson.isEmpty()) {
@@ -275,16 +276,20 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
             if (!root.has("data")) {
                 return;
             }
-            JsonObject data = root.getAsJsonObject("data");
-            if (!data.has("items")) {
+            JsonElement dataEl = root.get("data");
+            if (dataEl == null || !dataEl.isJsonObject()) {
                 return;
             }
-            JsonArray items = data.getAsJsonArray("items");
-            for (JsonElement e : items) {
-                JsonObject o = e.getAsJsonObject();
-                if (o.has("house_id")) {
-                    houseIds.add(o.get("house_id").getAsString());
+            JsonObject data = dataEl.getAsJsonObject();
+            if (data.has("items") && data.get("items").isJsonArray()) {
+                JsonArray items = data.getAsJsonArray("items");
+                for (JsonElement e : items) {
+                    if (e.isJsonObject() && e.getAsJsonObject().has("house_id")) {
+                        houseIds.add(e.getAsJsonObject().get("house_id").getAsString());
+                    }
                 }
+            } else if (data.has("house_id") && !data.get("house_id").isJsonNull()) {
+                houseIds.add(data.get("house_id").getAsString());
             }
         } catch (Exception ignored) {
         }
