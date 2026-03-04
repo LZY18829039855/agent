@@ -30,6 +30,8 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
     private static final ToolExecutor TOOL_EXECUTOR = new ToolExecutor(AGENT_CONFIG);
     private static final String MESSAGE_HOUSES_FOUND = "为您找到以下符合条件的房源：";
     private static final String MESSAGE_NO_HOUSES = "未找到符合条件的房源。";
+    /** 无需调用接口时直接返回的简短回复，节省 agent 输出 token */
+    private static final String MESSAGE_NO_TOOL_CALL = "好";
     /** 响应中房源 ID 列表的最大数量 */
     private static final int MAX_HOUSES_IN_RESPONSE = 5;
 
@@ -122,11 +124,11 @@ public class ChatHandler implements com.sun.net.httpserver.HttpHandler {
                         }
                         ctx.appendAssistantAndToolResults(sessionId, msg, toolCallIds, resultStrings);
                     } else {
-                        responseValue = msg.has("content") && !msg.get("content").isJsonNull() ? msg.get("content").getAsString() : "";
+                        responseValue = MESSAGE_NO_TOOL_CALL;
                         ctx.appendAssistantMessage(sessionId, msg);
                     }
                 } else {
-                    responseValue = (msg != null && msg.has("content") && !msg.get("content").isJsonNull()) ? msg.get("content").getAsString() : "";
+                    responseValue = MESSAGE_NO_TOOL_CALL;
                     if (msg != null) {
                         ctx.appendAssistantMessage(sessionId, msg);
                     }
